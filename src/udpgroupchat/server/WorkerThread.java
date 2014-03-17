@@ -13,8 +13,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.Timer;
+import java.util.concurrent.TimeoutException;
 
 public class WorkerThread extends Thread {
 
@@ -90,6 +91,11 @@ public class WorkerThread extends Thread {
 			onShutdownRequested(payload);
 			return;
 		}
+		
+		if(payload.startsWith("ACK")){
+			onACK(payload);
+			return;
+		}
 
 		//
 		// implement other request handlers here...
@@ -103,49 +109,10 @@ public class WorkerThread extends Thread {
 	// send a string, wrapped in a UDP packet, to the specified remote endpoint
 	public void send(String payload, InetAddress address, int port)
 			throws IOException {
-
-
-		/*
-		 * So this code would only work if you knew that you were being connected to from
-		 * a valid client. If there is no client class, then you can't be guaranteed a response
-		 * and it causes the server to crash when being connected to via netcat
-		 * */
-		boolean accepted = false;
-		int tries = 0;
-		while(!accepted)
-			try{
-				//try to send the data
-				DatagramPacket txPacket = new DatagramPacket(payload.getBytes(),
-						payload.length(), address, port);
-				this.socket.send(txPacket);	
-				accepted = true;
-				//timeout code from http://www.heimetli.ch/udp/UDPClient.html
-				// Set a receive timeout, 10000 milliseconds
-		       /* socket.setSoTimeout(10000) ;
-		
-		        // Prepare the packet for receive
-				byte[] buf = new byte[Server.MAX_PACKET_SIZE];
-				DatagramPacket packet = new DatagramPacket(buf, buf.length);
-		
-		        // Wait for a response from the server
-		        socket.receive(packet);
-				String receipt = new String(packet.getData(), 0, rxPacket.getLength())
-				.trim();
-				if(!receipt.startsWith("ACK")){
-					accepted = false;
-					tries++;
-				}
-				*/
-		        
-			}catch(SocketTimeoutException e){
-				e.printStackTrace();
-				
-				//increase
-				tries++;
-				if(tries != 5)
-					accepted = false;
-			}
-			
+		//try to send the data
+		DatagramPacket txPacket = new DatagramPacket(payload.getBytes(),
+				payload.length(), address, port);
+		this.socket.send(txPacket);	
 
 	}
 
@@ -228,6 +195,33 @@ public class WorkerThread extends Thread {
 	}
 	
 	/**
+	 * Form of acknowledgement receipt is
+	 * ACK <uniqueID>:<message>
+	 * Once a message has been acknowledged it is removed from the message list
+	 * @param payload
+	 */
+	private void onACK(String payload){
+		if(payload.contains(":")){
+			int id = Integer.parseInt(payload.substring("ACK".length()+1,payload.indexOf(':')).trim());
+			String message = payload.substring(payload.indexOf(':') + 1, payload.length()).trim();
+			ClientEndPoint recipient = (Server.clientEndPoints.get(id));
+			if(recipient.messages.contains(message)){
+				recipient.messages.remove(message);
+				try {
+					send("ACKNOWLEDGED: " + message + "\n", this.rxPacket.getAddress(),
+							this.rxPacket.getPort());
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}else{
+				onBadRequest(payload);
+			}
+		}else{
+			onBadRequest(payload);
+		}
+	}
+	
+	/**
 	 * Retrieve all the messages for this particular clientEndPoint
 	 */
 	private void onPollRequested(String payload){
@@ -235,16 +229,33 @@ public class WorkerThread extends Thread {
 		
 		ClientEndPoint recipient = (Server.clientEndPoints.get(id));
 		// the message is comes after "SEND" in the payload
-		
-		for (int i = 0; i < recipient.messages.size(); i ++) {
-			try {
-				String message = recipient.messages.get(i);
-				send(message + "\n", recipient.address,
-						recipient.port);	
-			} catch (IOException e) {
+		boolean moreMessages = true;
+		while(moreMessages){
+			//send all messages
+			for (int i = 0; i < recipient.messages.size(); i ++) {
+				try {
+					String message = recipient.messages.get(i);
+					send(message + "\n", recipient.address,
+							recipient.port);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			//sleep for ten seconds
+			try{
+				synchronized(this){
+					//this time is incredibly long because I had to type the acknowledgement all into netcat...
+					this.wait(20000);
+				}
+			}catch(InterruptedException e){
 				e.printStackTrace();
 			}
+			//if the messages haven't been acknowledged, send them again
+			if(recipient.messages.size()==0){
+				moreMessages = false;
+			}
 		}
+		//clear the message list for good measure
 		recipient.messages.clear();
 	}
 	
@@ -446,7 +457,6 @@ public class WorkerThread extends Thread {
 		onSendRequested("SEND SERVER IS SHUTTING DOWN");
 		this.socket.close();
 	}
-	
 	
 
 }

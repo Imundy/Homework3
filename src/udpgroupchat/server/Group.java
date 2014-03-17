@@ -29,6 +29,11 @@ public class Group {
 		currentSize = 0;
 	}
 	
+	/**
+	 * Add the client end point if there is room
+	 * @param newClient
+	 * @return if the client was able to be added
+	 */
 	public boolean add(ClientEndPoint newClient){
 		if(currentSize < 50){
 			clientEndPoints.add(newClient);
@@ -41,7 +46,7 @@ public class Group {
 	}
 	
 	public void remove(ClientEndPoint client){
-		
+		clientEndPoints.remove(client);
 	}
 	
 	public int hashCode(){
