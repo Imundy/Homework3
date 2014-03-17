@@ -370,9 +370,9 @@ public class WorkerThread extends Thread {
 	 */
 	private void onNameRequested(String payload){
 		if(payload.contains(":")){
-			int id = Integer.parseInt(payload.substring("NAME".length()+1), payload.indexOf(':'));
+			int id = Integer.parseInt(payload.substring("NAME".length()+1, payload.indexOf(':')).trim());
 			
-			String newName = payload.substring(payload.indexOf(':'), payload.length()).trim();
+			String newName = payload.substring(payload.indexOf(':')+1, payload.length()).trim();
 			ClientEndPoint recipient = Server.clientEndPoints.get(id);
 			recipient.changeName(newName);
 			
