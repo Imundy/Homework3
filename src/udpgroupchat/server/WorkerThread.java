@@ -13,9 +13,6 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Timer;
-import java.util.concurrent.TimeoutException;
 
 public class WorkerThread extends Thread {
 
@@ -392,7 +389,7 @@ public class WorkerThread extends Thread {
 	
 	/**
 	 * The format of the request is expected as 
-	 * "ADDR_CHANGE oldip"
+	 * "ADDR_CHANGE UNIQUEID"
 	 * If the oldip was not valid, then a Bad Request is sent back
 	 * @param payload
 	 */
@@ -400,37 +397,25 @@ public class WorkerThread extends Thread {
 		
 
 		InetAddress address = this.rxPacket.getAddress();
-		int port = this.rxPacket.getPort();
-		ClientEndPoint clientEndPoint = new ClientEndPoint(address, port);
 		
-		String oldAddressString = payload.substring("ADDR_CHANGE".length() + 1).trim();
-		try{
-			InetAddress oldAddress = InetAddress.getByName(oldAddressString);
-			int oldHashCode = (new ClientEndPoint(oldAddress, port).hashCode());
-			
-			ClientEndPoint oldClientEndPoint = Server.clientEndPoints.get(oldHashCode);
-			//if the old ip existed reregister the new one
-			if(oldClientEndPoint != null){
-				//copy the message queue of the old client
-				for(String message : oldClientEndPoint.messages){
-					clientEndPoint.messages.add(message);
-				}
-				
-				//put the new clientEndPoint into the array
-				Server.clientEndPoints.put(clientEndPoint.hashCode(), clientEndPoint);
-				//remove the old client
-				Server.clientEndPoints.remove(oldHashCode);
-				try {
-					send("REREGISTERED\n", this.rxPacket.getAddress(),
-							this.rxPacket.getPort());
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}else{
-				onBadRequest(payload);
+		
+		String uniqueID = payload.substring("ADDR_CHANGE".length() + 1).trim();
+
+		ClientEndPoint oldClientEndPoint = Server.clientEndPoints.get(uniqueID);
+		//if the old ip existed reregister the new one
+		if(oldClientEndPoint != null){
+			//copy the message queue of the old client
+			oldClientEndPoint.changeIP(address);interrupt();
+			//put the new clientEndPoint into the array
+			Server.clientEndPoints.put(Integer.parseInt(uniqueID), oldClientEndPoint);
+			try {
+				send("REREGISTERED\n", this.rxPacket.getAddress(),
+						this.rxPacket.getPort());
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-		}catch(UnknownHostException e){
-			e.printStackTrace();
+		}else{
+			onBadRequest(payload);
 		}
 
 		

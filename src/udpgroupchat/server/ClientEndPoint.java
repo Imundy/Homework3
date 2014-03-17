@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Random;
 
 public class ClientEndPoint {
-	protected final InetAddress address;
+	protected InetAddress address;
 	protected final int port;
 	protected String name = "";
 	
@@ -42,6 +42,10 @@ public class ClientEndPoint {
 	public int hashCode() {
 		// the hashcode is the exclusive or (XOR) of the port number and the hashcode of the address object
 		return this.port ^ this.address.hashCode();
+	}
+	
+	public void changeIP(InetAddress addr){
+		address= addr;
 	}
 	
 	public void addMessage(String message){

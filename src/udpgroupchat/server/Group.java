@@ -18,7 +18,7 @@ public class Group {
 	//name of the group
 	private String name_;
 	private final int MAX_GROUP_SIZE_ = 50;
-	private int currentSize;
+	private int currentSize_;
 	
 	//The set of ClientEndPoints in this particular group
 	protected final Set<ClientEndPoint> clientEndPoints = Collections
@@ -26,7 +26,7 @@ public class Group {
 	
 	public Group(String name){
 		name_ = name;
-		currentSize = 0;
+		currentSize_ =0;
 	}
 	
 	/**
@@ -35,9 +35,9 @@ public class Group {
 	 * @return if the client was able to be added
 	 */
 	public boolean add(ClientEndPoint newClient){
-		if(currentSize < 50){
+		if(currentSize_ < MAX_GROUP_SIZE_){
 			clientEndPoints.add(newClient);
-			currentSize++;
+			currentSize_++;
 			return true;
 		}else{
 			return false;
